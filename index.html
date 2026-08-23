@@ -31,27 +31,27 @@
 
 <div class="card" id="step1">
   <h2>1. Screenshot con immagine</h2>
-  <p class="step">Formato richiesto: 1080 × 2400 px. Verrà ritagliato un rettangolo di 1080 × 576 px.</p>
+  <p class="step">Formato richiesto: 1080 × 2400 px. Verrà ritagliato un rettangolo di 1080 × 620 px.</p>
   <label>
     <input type="file" id="file1" accept="image/*">
   </label>
   <div id="status1" class="status hidden"></div>
   <div class="canvas-wrap" id="wrap1">
     <canvas id="canvas1"></canvas>
-    <p>Clicca sull'immagine: il punto scelto sarà il bordo superiore del rettangolo da 1080 × 576 px.</p>
+    <p>Clicca sull'immagine: il punto scelto sarà il bordo superiore del rettangolo da 1080 × 620 px.</p>
   </div>
 </div>
 
 <div class="card" id="step2">
   <h2>2. Screenshot con testo</h2>
-  <p class="step">Formato richiesto: 1080 × 2400 px. Verrà ritagliato un rettangolo di 1080 × 921 px.</p>
+  <p class="step">Formato richiesto: 1080 × 2400 px. Verrà ritagliato un rettangolo di 1080 × 1010 px.</p>
   <label>
     <input type="file" id="file2" accept="image/*">
   </label>
   <div id="status2" class="status hidden"></div>
   <div class="canvas-wrap" id="wrap2">
     <canvas id="canvas2"></canvas>
-    <p>Clicca sull'immagine: il punto scelto sarà il bordo superiore del rettangolo da 1080 × 921 px.</p>
+    <p>Clicca sull'immagine: il punto scelto sarà il bordo superiore del rettangolo da 1080 × 1010 px.</p>
   </div>
 </div>
 
@@ -67,8 +67,8 @@
 <script>
 const EXPECTED_W = 1080;
 const EXPECTED_H = 2400;
-const CROP1_H = 576;
-const CROP2_H = 921;
+const CROP1_H = 620;
+const CROP2_H = 1010;
 const OFFSET_Y = 19;
 
 let crop1 = null;
@@ -161,7 +161,7 @@ function updateFinal() {
     return;
   }
 
-  // Altezza minima necessaria: 19 px + 576 px, mentre lo sfondo è alto 921 px.
+  // Altezza minima necessaria: 19 px + 620 px, mentre lo sfondo è alto 1010 px.
   const width = EXPECTED_W;
   const height = Math.max(CROP2_H, OFFSET_Y + CROP1_H);
 
