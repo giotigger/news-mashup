@@ -35,27 +35,45 @@
 
 <div class="card" id="step1">
   <h2>1. Screenshot con immagine</h2>
-  <p class="step">Formato richiesto: larghezza 1080 px (qualsiasi altezza). Verrà ritagliato un rettangolo di 1080 × 620 px.</p>
+  <p class="step">Formato richiesto: larghezza 1080 px (qualsiasi altezza).</p>
+  
+  <div class="control-group">
+    <label><strong>Altezza del ritaglio 1:</strong></label>
+    <div class="control-row">
+      <input type="range" id="crop1HRange" min="50" max="2400" value="620">
+      <input type="number" id="crop1HNumber" min="50" max="2400" value="620"> px
+    </div>
+  </div>
+
   <label>
     <input type="file" id="file1" accept="image/*">
   </label>
   <div id="status1" class="status hidden"></div>
   <div class="canvas-wrap" id="wrap1">
     <canvas id="canvas1"></canvas>
-    <p>Clicca sull'immagine: il punto scelto sarà il bordo superiore del rettangolo da 1080 × 620 px.</p>
+    <p>Clicca sull'immagine: il punto scelto sarà il bordo superiore del ritaglio.</p>
   </div>
 </div>
 
 <div class="card" id="step2">
   <h2>2. Screenshot con testo</h2>
-  <p class="step">Formato richiesto: larghezza 1080 px (qualsiasi altezza). Verrà ritagliato un rettangolo di 1080 × 1010 px.</p>
+  <p class="step">Formato richiesto: larghezza 1080 px (qualsiasi altezza).</p>
+  
+  <div class="control-group">
+    <label><strong>Altezza del ritaglio 2:</strong></label>
+    <div class="control-row">
+      <input type="range" id="crop2HRange" min="50" max="2400" value="1010">
+      <input type="number" id="crop2HNumber" min="50" max="2400" value="1010"> px
+    </div>
+  </div>
+
   <label>
     <input type="file" id="file2" accept="image/*">
   </label>
   <div id="status2" class="status hidden"></div>
   <div class="canvas-wrap" id="wrap2">
     <canvas id="canvas2"></canvas>
-    <p>Clicca sull'immagine: il punto scelto sarà il bordo superiore del rettangolo da 1080 × 1010 px.</p>
+    <p>Clicca sull'immagine: il punto scelto sarà il bordo superiore del ritaglio.</p>
   </div>
 </div>
 
@@ -91,11 +109,13 @@
 
 <script>
 const EXPECTED_W = 1080;
-const CROP1_H = 620;
-const CROP2_H = 1010;
 
-let crop1 = null;
-let crop2 = null;
+// Oggetti di stato per ciascuno step
+const stepData = {
+  1: { img: null, lastY: 0, cropCanvas: null, rangeEl: document.getElementById('crop1HRange'), numEl: document.getElementById('crop1HNumber') },
+  2: { img: null, lastY: 0, cropCanvas: null, rangeEl: document.getElementById('crop2HRange'), numEl: document.getElementById('crop2HNumber') }
+};
+
 let baseCanvas = null;  // Canvas con la combinazione delle due immagini
 let finalCanvas = null; // Canvas finale tagliato per l'altezza scelta
 
@@ -105,12 +125,48 @@ const numberOffsetY = document.getElementById('offsetYNumber');
 const rangeHeight = document.getElementById('heightCropRange');
 const numberHeight = document.getElementById('heightCropNumber');
 
-function setupStep(fileInputId, canvasId, wrapId, statusId, cropHeight, which) {
+function getCropHeight(which) {
+  return parseInt(stepData[which].rangeEl.value, 10);
+}
+
+function processCrop(which) {
+  const data = stepData[which];
+  if (!data.img) return;
+
+  const cropH = getCropHeight(which);
+  // Assicurati che Y sia nei limiti rispetto alla nuova altezza ritaglio
+  data.lastY = Math.max(0, Math.min(data.lastY, data.img.naturalHeight - cropH));
+
+  const crop = document.createElement('canvas');
+  crop.width = EXPECTED_W;
+  crop.height = cropH;
+  crop.getContext('2d').drawImage(
+    data.img, 0, data.lastY, EXPECTED_W, cropH,
+    0, 0, EXPECTED_W, cropH
+  );
+
+  data.cropCanvas = crop;
+
+  // Disegna l'immagine di anteprima con la guida di ritaglio
+  const canvas = document.getElementById(`canvas${which}`);
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(data.img, 0, 0);
+  ctx.strokeStyle = '#ff0000';
+  ctx.lineWidth = 6;
+  ctx.strokeRect(0, data.lastY, EXPECTED_W, cropH);
+
+  const status = document.getElementById(`status${which}`);
+  status.textContent = `Ritaglio selezionato: da Y=${data.lastY} a Y=${data.lastY + cropH} px (Altezza: ${cropH} px).`;
+
+  updateBase();
+}
+
+function setupStep(fileInputId, canvasId, wrapId, statusId, which) {
   const fileInput = document.getElementById(fileInputId);
   const canvas = document.getElementById(canvasId);
   const wrap = document.getElementById(wrapId);
   const status = document.getElementById(statusId);
-  const ctx = canvas.getContext('2d');
+  const data = stepData[which];
 
   fileInput.addEventListener('change', () => {
     const file = fileInput.files[0];
@@ -123,8 +179,8 @@ function setupStep(fileInputId, canvasId, wrapId, statusId, cropHeight, which) {
         status.classList.add('error');
         status.textContent = `Formato non valido: la larghezza è ${img.naturalWidth} px. Deve essere esattamente 1080 px.`;
         wrap.style.display = 'none';
-        if (which === 1) crop1 = null;
-        else crop2 = null;
+        data.img = null;
+        data.cropCanvas = null;
         updateBase();
         return;
       }
@@ -135,37 +191,27 @@ function setupStep(fileInputId, canvasId, wrapId, statusId, cropHeight, which) {
 
       canvas.width = img.naturalWidth;
       canvas.height = img.naturalHeight;
-      ctx.drawImage(img, 0, 0);
+
+      data.img = img;
+      data.lastY = 0;
+      
+      // Imposta il max dello slider/number in base all'altezza dell'immagine caricata
+      data.rangeEl.max = img.naturalHeight;
+      data.numEl.max = img.naturalHeight;
 
       wrap.style.display = 'block';
 
+      processCrop(which);
+
       canvas.onclick = (event) => {
         const rect = canvas.getBoundingClientRect();
-        const scaleX = img.naturalWidth / rect.width;
         const scaleY = img.naturalHeight / rect.height;
-        let x = Math.round((event.clientX - rect.left) * scaleX);
-        let y = Math.round((event.clientY - rect.top) * scaleY);
+        const cropH = getCropHeight(which);
+        
+        let clickY = Math.round((event.clientY - rect.top) * scaleY);
+        data.lastY = Math.max(0, Math.min(clickY, img.naturalHeight - cropH));
 
-        y = Math.max(0, Math.min(y, img.naturalHeight - cropHeight));
-
-        const crop = document.createElement('canvas');
-        crop.width = EXPECTED_W;
-        crop.height = cropHeight;
-        crop.getContext('2d').drawImage(
-          img, 0, y, EXPECTED_W, cropHeight,
-          0, 0, EXPECTED_W, cropHeight
-        );
-
-        if (which === 1) crop1 = crop;
-        else crop2 = crop;
-
-        ctx.drawImage(img, 0, 0);
-        ctx.strokeStyle = '#ff0000';
-        ctx.lineWidth = 6;
-        ctx.strokeRect(0, y, EXPECTED_W, cropHeight);
-
-        status.textContent = `Ritaglio selezionato: da Y=${y} a Y=${y + cropHeight} px.`;
-        updateBase();
+        processCrop(which);
       };
     };
 
@@ -177,18 +223,42 @@ function setupStep(fileInputId, canvasId, wrapId, statusId, cropHeight, which) {
 
     img.src = URL.createObjectURL(file);
   });
+
+  // Gestione controlli altezza ritaglio
+  data.rangeEl.addEventListener('input', (e) => {
+    data.numEl.value = e.target.value;
+    processCrop(which);
+  });
+
+  data.numEl.addEventListener('input', (e) => {
+    let val = parseInt(e.target.value, 10);
+    if (isNaN(val)) return;
+    val = Math.max(1, Math.min(val, parseInt(data.rangeEl.max, 10)));
+    data.rangeEl.value = val;
+    processCrop(which);
+  });
 }
 
 function updateBase() {
   const button = document.getElementById('download');
+  const crop1 = stepData[1].cropCanvas;
+  const crop2 = stepData[2].cropCanvas;
+
   if (!crop1 || !crop2) {
     button.disabled = true;
     document.getElementById('resultWrap').classList.add('hidden');
     return;
   }
 
+  const crop1H = crop1.height;
+  const crop2H = crop2.height;
+
   const offsetY = parseInt(rangeOffsetY.value, 10);
-  const totalHeight = Math.max(CROP2_H, offsetY + CROP1_H);
+  const totalHeight = Math.max(crop2H, offsetY + crop1H);
+
+  // Aggiorna il massimo per l'offset Y in base all'altezza del ritaglio 2
+  rangeOffsetY.max = crop2H;
+  numberOffsetY.max = crop2H;
 
   baseCanvas = document.createElement('canvas');
   baseCanvas.width = EXPECTED_W;
@@ -201,7 +271,7 @@ function updateBase() {
   // Primo screenshot posizionato all'altezza Y specificata
   ctx.drawImage(crop1, 0, offsetY);
 
-  // Aggiorna limiti per lo slider dell'altezza
+  // Aggiorna limiti per lo slider dell'altezza finale
   rangeHeight.max = totalHeight;
   numberHeight.max = totalHeight;
   
@@ -240,7 +310,7 @@ rangeOffsetY.addEventListener('input', (e) => {
 numberOffsetY.addEventListener('input', (e) => {
   let val = parseInt(e.target.value, 10);
   if (isNaN(val)) return;
-  val = Math.max(0, Math.min(val, CROP2_H));
+  val = Math.max(0, Math.min(val, parseInt(rangeOffsetY.max, 10)));
   rangeOffsetY.value = val;
   updateBase();
 });
@@ -267,8 +337,8 @@ document.getElementById('download').addEventListener('click', () => {
   a.click();
 });
 
-setupStep('file1', 'canvas1', 'wrap1', 'status1', CROP1_H, 1);
-setupStep('file2', 'canvas2', 'wrap2', 'status2', CROP2_H, 2);
+setupStep('file1', 'canvas1', 'wrap1', 'status1', 1);
+setupStep('file2', 'canvas2', 'wrap2', 'status2', 2);
 </script>
 
 </body>
