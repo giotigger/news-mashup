@@ -30,18 +30,18 @@
 
 <div class="card">
   <h1>Compositore screenshot</h1>
-  <p>Carica i due screenshot e clicca sul punto che indica il bordo superiore del ritaglio.</p>
+  <p>Carica i due screenshot e seleziona il margine superiore ed l'altezza per ciascun ritaglio.</p>
 </div>
 
 <div class="card" id="step1">
-  <h2>1. Screenshot con immagine</h2>
-  <p class="step">Formato richiesto: larghezza 1080 px (qualsiasi altezza).</p>
+  <h2>1. Screenshot superiore</h2>
+  <p class="step">Formato richiesto: larghezza 1080 px (qualsiasi altezza). Clicca sull'immagine per scegliere il bordo superiore del ritaglio.</p>
   
   <div class="control-group">
     <label><strong>Altezza del ritaglio 1:</strong></label>
     <div class="control-row">
-      <input type="range" id="crop1HRange" min="50" max="2400" value="620">
-      <input type="number" id="crop1HNumber" min="50" max="2400" value="620"> px
+      <input type="range" id="crop1HRange" min="1" max="2400" value="620">
+      <input type="number" id="crop1HNumber" min="1" max="2400" value="620"> px
     </div>
   </div>
 
@@ -51,19 +51,19 @@
   <div id="status1" class="status hidden"></div>
   <div class="canvas-wrap" id="wrap1">
     <canvas id="canvas1"></canvas>
-    <p>Clicca sull'immagine: il punto scelto sarà il bordo superiore del ritaglio.</p>
+    <p>Clicca sull'immagine: il punto scelto definirà il bordo superiore del primo ritaglio.</p>
   </div>
 </div>
 
 <div class="card" id="step2">
-  <h2>2. Screenshot con testo</h2>
-  <p class="step">Formato richiesto: larghezza 1080 px (qualsiasi altezza).</p>
+  <h2>2. Screenshot inferiore</h2>
+  <p class="step">Formato richiesto: larghezza 1080 px (qualsiasi altezza). Clicca sull'immagine per scegliere il bordo superiore del ritaglio.</p>
   
   <div class="control-group">
     <label><strong>Altezza del ritaglio 2:</strong></label>
     <div class="control-row">
-      <input type="range" id="crop2HRange" min="50" max="2400" value="1010">
-      <input type="number" id="crop2HNumber" min="50" max="2400" value="1010"> px
+      <input type="range" id="crop2HRange" min="1" max="2400" value="300">
+      <input type="number" id="crop2HNumber" min="1" max="2400" value="300"> px
     </div>
   </div>
 
@@ -73,33 +73,15 @@
   <div id="status2" class="status hidden"></div>
   <div class="canvas-wrap" id="wrap2">
     <canvas id="canvas2"></canvas>
-    <p>Clicca sull'immagine: il punto scelto sarà il bordo superiore del ritaglio.</p>
+    <p>Clicca sull'immagine: il punto scelto definirà il bordo superiore del secondo ritaglio.</p>
   </div>
 </div>
 
 <div class="card">
   <h2>3. Immagine finale</h2>
-  <p>La prima immagine verrà sovrapposta alla seconda. Regola la posizione e il taglio desiderati.</p>
+  <p>L'immagine finale è data dall'unione della parte superiore (Immagine 1) e della parte inferiore (Immagine 2).</p>
   
   <div id="resultWrap" class="hidden">
-    <!-- Regolazione offset Y del primo ritaglio -->
-    <div class="control-group">
-      <label for="offsetYRange"><strong>Posizione verticale prima immagine (Offset Y):</strong></label>
-      <div class="control-row">
-        <input type="range" id="offsetYRange" min="0" max="1010" value="19">
-        <input type="number" id="offsetYNumber" min="0" max="1010" value="19"> px
-      </div>
-    </div>
-
-    <!-- Regolazione altezza finale (taglio inferiore) -->
-    <div class="control-group">
-      <label for="heightCropRange"><strong>Altezza totale finale (taglia parte inferiore):</strong></label>
-      <div class="control-row">
-        <input type="range" id="heightCropRange" min="100" max="1010" value="1010">
-        <input type="number" id="heightCropNumber" min="100" max="1010" value="1010"> px
-      </div>
-    </div>
-    
     <button id="download" disabled>Scarica immagine finale</button>
     <div style="margin-top:20px">
       <img id="result" alt="Immagine finale">
@@ -110,20 +92,12 @@
 <script>
 const EXPECTED_W = 1080;
 
-// Oggetti di stato per ciascuno step
 const stepData = {
-  1: { img: null, lastY: 0, cropCanvas: null, rangeEl: document.getElementById('crop1HRange'), numEl: document.getElementById('crop1HNumber') },
-  2: { img: null, lastY: 0, cropCanvas: null, rangeEl: document.getElementById('crop2HRange'), numEl: document.getElementById('crop2HNumber') }
+  1: { img: null, startY: 0, cropCanvas: null, rangeEl: document.getElementById('crop1HRange'), numEl: document.getElementById('crop1HNumber') },
+  2: { img: null, startY: 0, cropCanvas: null, rangeEl: document.getElementById('crop2HRange'), numEl: document.getElementById('crop2HNumber') }
 };
 
-let baseCanvas = null;  // Canvas con la combinazione delle due immagini
-let finalCanvas = null; // Canvas finale tagliato per l'altezza scelta
-
-const rangeOffsetY = document.getElementById('offsetYRange');
-const numberOffsetY = document.getElementById('offsetYNumber');
-
-const rangeHeight = document.getElementById('heightCropRange');
-const numberHeight = document.getElementById('heightCropNumber');
+let finalCanvas = null;
 
 function getCropHeight(which) {
   return parseInt(stepData[which].rangeEl.value, 10);
@@ -134,31 +108,32 @@ function processCrop(which) {
   if (!data.img) return;
 
   const cropH = getCropHeight(which);
-  // Assicurati che Y sia nei limiti rispetto alla nuova altezza ritaglio
-  data.lastY = Math.max(0, Math.min(data.lastY, data.img.naturalHeight - cropH));
+
+  // Garantisce che il rettangolo di selezione non vada oltre la fine dell'immagine
+  data.startY = Math.max(0, Math.min(data.startY, data.img.naturalHeight - cropH));
 
   const crop = document.createElement('canvas');
   crop.width = EXPECTED_W;
   crop.height = cropH;
   crop.getContext('2d').drawImage(
-    data.img, 0, data.lastY, EXPECTED_W, cropH,
+    data.img, 0, data.startY, EXPECTED_W, cropH,
     0, 0, EXPECTED_W, cropH
   );
 
   data.cropCanvas = crop;
 
-  // Disegna l'immagine di anteprima con la guida di ritaglio
+  // Disegna l'anteprima con guida rossa
   const canvas = document.getElementById(`canvas${which}`);
   const ctx = canvas.getContext('2d');
   ctx.drawImage(data.img, 0, 0);
   ctx.strokeStyle = '#ff0000';
   ctx.lineWidth = 6;
-  ctx.strokeRect(0, data.lastY, EXPECTED_W, cropH);
+  ctx.strokeRect(0, data.startY, EXPECTED_W, cropH);
 
   const status = document.getElementById(`status${which}`);
-  status.textContent = `Ritaglio selezionato: da Y=${data.lastY} a Y=${data.lastY + cropH} px (Altezza: ${cropH} px).`;
+  status.textContent = `Ritaglio selezionato: da Y=${data.startY} a Y=${data.startY + cropH} px (Altezza: ${cropH} px).`;
 
-  updateBase();
+  updateFinal();
 }
 
 function setupStep(fileInputId, canvasId, wrapId, statusId, which) {
@@ -181,23 +156,28 @@ function setupStep(fileInputId, canvasId, wrapId, statusId, which) {
         wrap.style.display = 'none';
         data.img = null;
         data.cropCanvas = null;
-        updateBase();
+        updateFinal();
         return;
       }
 
       status.classList.remove('error');
       status.classList.remove('hidden');
-      status.textContent = `Immagine corretta: 1080 × ${img.naturalHeight} px. Clicca nell'immagine per scegliere il bordo superiore del ritaglio.`;
+      status.textContent = `Immagine corretta: 1080 × ${img.naturalHeight} px. Clicca sull'immagine per scegliere il margine superiore.`;
 
       canvas.width = img.naturalWidth;
       canvas.height = img.naturalHeight;
 
       data.img = img;
-      data.lastY = 0;
+      data.startY = 0;
       
-      // Imposta il max dello slider/number in base all'altezza dell'immagine caricata
+      // Imposta i limiti dello slider in base all'altezza effettiva dell'immagine
       data.rangeEl.max = img.naturalHeight;
       data.numEl.max = img.naturalHeight;
+
+      if (parseInt(data.rangeEl.value) > img.naturalHeight) {
+        data.rangeEl.value = img.naturalHeight;
+        data.numEl.value = img.naturalHeight;
+      }
 
       wrap.style.display = 'block';
 
@@ -206,10 +186,11 @@ function setupStep(fileInputId, canvasId, wrapId, statusId, which) {
       canvas.onclick = (event) => {
         const rect = canvas.getBoundingClientRect();
         const scaleY = img.naturalHeight / rect.height;
-        const cropH = getCropHeight(which);
-        
         let clickY = Math.round((event.clientY - rect.top) * scaleY);
-        data.lastY = Math.max(0, Math.min(clickY, img.naturalHeight - cropH));
+
+        // Per entrambe le immagini: il click definisce la posizione Y del bordo superiore
+        const cropH = getCropHeight(which);
+        data.startY = Math.max(0, Math.min(clickY, img.naturalHeight - cropH));
 
         processCrop(which);
       };
@@ -224,7 +205,7 @@ function setupStep(fileInputId, canvasId, wrapId, statusId, which) {
     img.src = URL.createObjectURL(file);
   });
 
-  // Gestione controlli altezza ritaglio
+  // Gestione slider e campi numerici per l'altezza
   data.rangeEl.addEventListener('input', (e) => {
     data.numEl.value = e.target.value;
     processCrop(which);
@@ -239,7 +220,7 @@ function setupStep(fileInputId, canvasId, wrapId, statusId, which) {
   });
 }
 
-function updateBase() {
+function updateFinal() {
   const button = document.getElementById('download');
   const crop1 = stepData[1].cropCanvas;
   const crop2 = stepData[2].cropCanvas;
@@ -250,84 +231,23 @@ function updateBase() {
     return;
   }
 
-  const crop1H = crop1.height;
-  const crop2H = crop2.height;
-
-  const offsetY = parseInt(rangeOffsetY.value, 10);
-  const totalHeight = Math.max(crop2H, offsetY + crop1H);
-
-  // Aggiorna il massimo per l'offset Y in base all'altezza del ritaglio 2
-  rangeOffsetY.max = crop2H;
-  numberOffsetY.max = crop2H;
-
-  baseCanvas = document.createElement('canvas');
-  baseCanvas.width = EXPECTED_W;
-  baseCanvas.height = totalHeight;
-  const ctx = baseCanvas.getContext('2d');
-
-  // Secondo screenshot come base
-  ctx.drawImage(crop2, 0, 0);
-
-  // Primo screenshot posizionato all'altezza Y specificata
-  ctx.drawImage(crop1, 0, offsetY);
-
-  // Aggiorna limiti per lo slider dell'altezza finale
-  rangeHeight.max = totalHeight;
-  numberHeight.max = totalHeight;
-  
-  if (parseInt(rangeHeight.value) > totalHeight || parseInt(rangeHeight.value) === parseInt(rangeHeight.max)) {
-    rangeHeight.value = totalHeight;
-    numberHeight.value = totalHeight;
-  }
-
-  document.getElementById('resultWrap').classList.remove('hidden');
-  button.disabled = false;
-  
-  renderFinal();
-}
-
-function renderFinal() {
-  if (!baseCanvas) return;
-
-  const targetHeight = parseInt(rangeHeight.value, 10);
+  const totalHeight = crop1.height + crop2.height;
 
   finalCanvas = document.createElement('canvas');
   finalCanvas.width = EXPECTED_W;
-  finalCanvas.height = targetHeight;
-
+  finalCanvas.height = totalHeight;
   const ctx = finalCanvas.getContext('2d');
-  ctx.drawImage(baseCanvas, 0, 0, EXPECTED_W, targetHeight, 0, 0, EXPECTED_W, targetHeight);
+
+  // Disegna il primo ritaglio in alto
+  ctx.drawImage(crop1, 0, 0);
+
+  // Disegna il secondo ritaglio immediatamente sotto il primo
+  ctx.drawImage(crop2, 0, crop1.height);
 
   document.getElementById('result').src = finalCanvas.toDataURL('image/png');
+  document.getElementById('resultWrap').classList.remove('hidden');
+  button.disabled = false;
 }
-
-// Eventi per l'offset verticale (spostamento prima immagine)
-rangeOffsetY.addEventListener('input', (e) => {
-  numberOffsetY.value = e.target.value;
-  updateBase();
-});
-
-numberOffsetY.addEventListener('input', (e) => {
-  let val = parseInt(e.target.value, 10);
-  if (isNaN(val)) return;
-  val = Math.max(0, Math.min(val, parseInt(rangeOffsetY.max, 10)));
-  rangeOffsetY.value = val;
-  updateBase();
-});
-
-// Eventi per l'altezza totale (taglio inferiore)
-rangeHeight.addEventListener('input', (e) => {
-  numberHeight.value = e.target.value;
-  renderFinal();
-});
-
-numberHeight.addEventListener('input', (e) => {
-  let val = parseInt(e.target.value, 10);
-  if (isNaN(val)) return;
-  val = Math.max(1, Math.min(val, parseInt(rangeHeight.max, 10)));
-  rangeHeight.value = val;
-  renderFinal();
-});
 
 document.getElementById('download').addEventListener('click', () => {
   if (!finalCanvas) return;
