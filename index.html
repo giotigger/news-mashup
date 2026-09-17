@@ -21,16 +21,18 @@
   .hidden { display:none; }
   .error { color:#b00020; }
   .control-group { margin: 15px 0; padding: 12px; background: #f9f9f9; border-radius: 8px; }
-  .control-row { display: flex; align-items: center; gap: 10px; margin-top: 5px; }
+  .control-row { display: flex; align-items: center; gap: 8px; margin-top: 5px; }
   .control-row input[type=range] { flex-grow: 1; }
-  .control-row input[type=number] { width: 75px; padding: 5px; }
+  .control-row input[type=number] { width: 65px; padding: 5px; }
+  .btn-step { padding: 6px 12px; font-size: 14px; background: #e0e0e0; color: #333; border: 1px solid #ccc; border-radius: 5px; cursor: pointer; user-select: none; }
+  .btn-step:active { background: #ccc; }
 </style>
 </head>
 <body>
 
 <div class="card">
   <h1>Compositore screenshot</h1>
-  <p>Carica i due screenshot e seleziona il margine superiore ed l'altezza per ciascun ritaglio.</p>
+  <p>Carica i due screenshot e seleziona il margine superiore e l'altezza per ciascun ritaglio.</p>
 </div>
 
 <div class="card" id="step1">
@@ -40,7 +42,9 @@
   <div class="control-group">
     <label><strong>Altezza del ritaglio 1:</strong></label>
     <div class="control-row">
+      <button type="button" class="btn-step" id="crop1HDown">▼</button>
       <input type="range" id="crop1HRange" min="1" max="2400" value="620">
+      <button type="button" class="btn-step" id="crop1HUp">▲</button>
       <input type="number" id="crop1HNumber" min="1" max="2400" value="620"> px
     </div>
   </div>
@@ -62,7 +66,9 @@
   <div class="control-group">
     <label><strong>Altezza del ritaglio 2:</strong></label>
     <div class="control-row">
+      <button type="button" class="btn-step" id="crop2HDown">▼</button>
       <input type="range" id="crop2HRange" min="1" max="2400" value="300">
+      <button type="button" class="btn-step" id="crop2HUp">▲</button>
       <input type="number" id="crop2HNumber" min="1" max="2400" value="300"> px
     </div>
   </div>
@@ -93,8 +99,8 @@
 const EXPECTED_W = 1080;
 
 const stepData = {
-  1: { img: null, startY: 0, cropCanvas: null, rangeEl: document.getElementById('crop1HRange'), numEl: document.getElementById('crop1HNumber') },
-  2: { img: null, startY: 0, cropCanvas: null, rangeEl: document.getElementById('crop2HRange'), numEl: document.getElementById('crop2HNumber') }
+  1: { img: null, startY: 0, cropCanvas: null, rangeEl: document.getElementById('crop1HRange'), numEl: document.getElementById('crop1HNumber'), btnUp: document.getElementById('crop1HUp'), btnDown: document.getElementById('crop1HDown') },
+  2: { img: null, startY: 0, cropCanvas: null, rangeEl: document.getElementById('crop2HRange'), numEl: document.getElementById('crop2HNumber'), btnUp: document.getElementById('crop2HUp'), btnDown: document.getElementById('crop2HDown') }
 };
 
 let finalCanvas = null;
@@ -103,13 +109,21 @@ function getCropHeight(which) {
   return parseInt(stepData[which].rangeEl.value, 10);
 }
 
+function setCropHeight(which, val) {
+  const data = stepData[which];
+  const max = parseInt(data.rangeEl.max, 10) || 2400;
+  val = Math.max(1, Math.min(val, max));
+  data.rangeEl.value = val;
+  data.numEl.value = val;
+  processCrop(which);
+}
+
 function processCrop(which) {
   const data = stepData[which];
   if (!data.img) return;
 
   const cropH = getCropHeight(which);
 
-  // Garantisce che il rettangolo di selezione non vada oltre la fine dell'immagine
   data.startY = Math.max(0, Math.min(data.startY, data.img.naturalHeight - cropH));
 
   const crop = document.createElement('canvas');
@@ -122,7 +136,6 @@ function processCrop(which) {
 
   data.cropCanvas = crop;
 
-  // Disegna l'anteprima con guida rossa
   const canvas = document.getElementById(`canvas${which}`);
   const ctx = canvas.getContext('2d');
   ctx.drawImage(data.img, 0, 0);
@@ -169,8 +182,7 @@ function setupStep(fileInputId, canvasId, wrapId, statusId, which) {
 
       data.img = img;
       data.startY = 0;
-      
-      // Imposta i limiti dello slider in base all'altezza effettiva dell'immagine
+
       data.rangeEl.max = img.naturalHeight;
       data.numEl.max = img.naturalHeight;
 
@@ -188,7 +200,6 @@ function setupStep(fileInputId, canvasId, wrapId, statusId, which) {
         const scaleY = img.naturalHeight / rect.height;
         let clickY = Math.round((event.clientY - rect.top) * scaleY);
 
-        // Per entrambe le immagini: il click definisce la posizione Y del bordo superiore
         const cropH = getCropHeight(which);
         data.startY = Math.max(0, Math.min(clickY, img.naturalHeight - cropH));
 
@@ -205,7 +216,6 @@ function setupStep(fileInputId, canvasId, wrapId, statusId, which) {
     img.src = URL.createObjectURL(file);
   });
 
-  // Gestione slider e campi numerici per l'altezza
   data.rangeEl.addEventListener('input', (e) => {
     data.numEl.value = e.target.value;
     processCrop(which);
@@ -214,9 +224,17 @@ function setupStep(fileInputId, canvasId, wrapId, statusId, which) {
   data.numEl.addEventListener('input', (e) => {
     let val = parseInt(e.target.value, 10);
     if (isNaN(val)) return;
-    val = Math.max(1, Math.min(val, parseInt(data.rangeEl.max, 10)));
-    data.rangeEl.value = val;
-    processCrop(which);
+    setCropHeight(which, val);
+  });
+
+  // Premendo ▼ (in giù) aumenta l'altezza verso il basso
+  data.btnDown.addEventListener('click', () => {
+    setCropHeight(which, getCropHeight(which) + 10);
+  });
+
+  // Premendo ▲ (in su) diminuisce l'altezza verso l'alto
+  data.btnUp.addEventListener('click', () => {
+    setCropHeight(which, getCropHeight(which) - 10);
   });
 }
 
@@ -238,10 +256,7 @@ function updateFinal() {
   finalCanvas.height = totalHeight;
   const ctx = finalCanvas.getContext('2d');
 
-  // Disegna il primo ritaglio in alto
   ctx.drawImage(crop1, 0, 0);
-
-  // Disegna il secondo ritaglio immediatamente sotto il primo
   ctx.drawImage(crop2, 0, crop1.height);
 
   document.getElementById('result').src = finalCanvas.toDataURL('image/png');
